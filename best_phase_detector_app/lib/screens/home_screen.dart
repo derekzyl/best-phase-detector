@@ -1,5 +1,7 @@
+import 'package:best_phase_detector_app/models/phase_data.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../services/phase_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -56,7 +58,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (!service.isConnected) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(service.errorMessage ?? 'Connection failed'),
+                      content: Text(
+                        service.errorMessage ?? 'Connection failed',
+                      ),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -174,7 +178,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: status.mode == 'automatic'
                         ? Colors.green
@@ -278,10 +285,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Phase Voltages',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
+        Text('Phase Voltages', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
         ...status.phases.asMap().entries.map((entry) {
           final index = entry.key;
@@ -319,9 +323,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     Text(
                       phase.name,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: isActive ? Colors.green.shade900 : null,
-                          ),
+                        fontWeight: FontWeight.bold,
+                        color: isActive ? Colors.green.shade900 : null,
+                      ),
                     ),
                     if (isActive) ...[
                       const SizedBox(width: 8),
@@ -440,23 +444,16 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(width: 4),
             Text(
               label,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
           ],
         ),
         const SizedBox(height: 4),
         Text(
           '${voltage.toStringAsFixed(1)} V',
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ],
     );
   }
 }
-

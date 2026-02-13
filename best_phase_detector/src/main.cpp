@@ -7,9 +7,9 @@
 
 // Pin definitions
 #define BUTTON_1_PIN 13
-#define BUTTON_2_PIN 14
+#define BUTTON_2_PIN 17
 #define RELAY_1_PIN 18  // Phase 1 relay
-#define RELAY_2_PIN 4   // Phase 2 relay
+#define RELAY_2_PIN 16   // Phase 2 relay
 #define RELAY_3_PIN 23  // Phase 3 relay
 #define VOLTAGE_SENSOR_1_PIN 32  // Phase 1
 #define VOLTAGE_SENSOR_2_PIN 35  // Phase 2
@@ -32,7 +32,7 @@ WebServer server(80);
 // Voltage sensor calibration
 const float VREF = 3.3;
 const int ADC_MAX = 4095;
-const int SAMPLES = 500;  // Reduced for better performance
+const int SAMPLES = 300;  // Reduced for better performance (was 500)
 
 // Calibration factor - ADJUST THIS based on your ZMPT101B modules
 // Start with 250 and adjust after testing with a multimeter
@@ -114,7 +114,7 @@ void handleNotFound();
 void readVoltage(int phaseIndex, int sensorPin);
 void updateVoltageTrends();
 int findBestPhase();
-void switchToPhase(int phaseIndex);
+void switchToPhase(int phaseIndex, bool force = false);
 void updateLCD();
 void handleButtons();
 int checkButton(ButtonState* button);
@@ -216,11 +216,20 @@ void loop() {
     unsigned long currentMillis = millis();
     
     // Read voltages periodically
+    // Read voltages periodically (Round-robin to avoid blocking)
     if (currentMillis - lastVoltageRead >= VOLTAGE_READ_INTERVAL) {
+        static int phaseToRead = 0;
         isReadingVoltage = true;
-        readVoltage(0, VOLTAGE_SENSOR_1_PIN);
-        readVoltage(1, VOLTAGE_SENSOR_2_PIN);
-        readVoltage(2, VOLTAGE_SENSOR_3_PIN);
+        
+        // Read one phase per cycle
+        switch (phaseToRead) {
+            case 0: readVoltage(0, VOLTAGE_SENSOR_1_PIN); break;
+            case 1: readVoltage(1, VOLTAGE_SENSOR_2_PIN); break;
+            case 2: readVoltage(2, VOLTAGE_SENSOR_3_PIN); break;
+        }
+        
+        phaseToRead = (phaseToRead + 1) % 3;
+        
         isReadingVoltage = false;
         lastVoltageRead = currentMillis;
     }
@@ -237,7 +246,7 @@ void loop() {
                 Serial.print(selectedPhase + 1);
                 Serial.print(" to Phase ");
                 Serial.println(bestPhase + 1);
-                switchToPhase(bestPhase);
+                switchToPhase(bestPhase, false);
             }
         }
         lastTrendUpdate = currentMillis;
@@ -379,15 +388,15 @@ int findBestPhase() {
     return bestPhase;
 }
 
-void switchToPhase(int phaseIndex) {
+void switchToPhase(int phaseIndex, bool force) {
     if (phaseIndex < 0 || phaseIndex >= 3) {
         Serial.println("ERROR: Invalid phase index");
         return;
     }
     
-    // Safety check: Don't switch too frequently
+    // Safety check: Don't switch too frequently (unless forced)
     unsigned long timeSinceLastSwitch = millis() - lastSwitchTime;
-    if (lastSwitchTime > 0 && timeSinceLastSwitch < MIN_SWITCH_INTERVAL) {
+    if (!force && lastSwitchTime > 0 && timeSinceLastSwitch < MIN_SWITCH_INTERVAL) {
         Serial.print("Switch blocked: Too soon (");
         Serial.print((MIN_SWITCH_INTERVAL - timeSinceLastSwitch) / 1000);
         Serial.println("s remaining)");
@@ -609,7 +618,7 @@ void selectMenuItem() {
         Serial.print("Selecting ");
         Serial.println(phases[currentMenuIndex].name);
         systemMode = MODE_MANUAL;
-        switchToPhase(currentMenuIndex);
+        switchToPhase(currentMenuIndex, true);
         menuState = MENU_MAIN;
     }
     else if (menuState == MENU_SETTINGS) {
@@ -734,7 +743,7 @@ void handleRoot() {
     html += "data.phases.forEach((p,i)=>{";
     html += "html+='<div class=\"phase'+(p.isActive?' active':'')+'\">';";
     html += "html+='<div style=\"display:flex;justify-content:space-between;align-items:center;\">';";
-    html += "html+='<div><strong>'+p.name+'</strong></div>';";
+    html += "html+='<div><strong>'+p.name+'</strong>'+(p.isActive?' <span style=\"background:#4CAF50;color:white;padding:2px 5px;border-radius:3px;font-size:10px;\">ACTIVE</span>':'')+'</div>';";
     html += "html+='<div class=\"voltage\">'+p.voltage.toFixed(1)+'V</div>';";
     html += "html+='</div>';";
     html += "html+='<div class=\"stats\">Avg: '+p.avgVoltage.toFixed(1)+'V | Range: '+p.minVoltage.toFixed(1)+'-'+p.maxVoltage.toFixed(1)+'V</div>';";
@@ -744,7 +753,7 @@ void handleRoot() {
     html += "html+='</div>';";
     html += "});";
     html += "document.getElementById('status').innerHTML=html;";
-    html += "document.getElementById('modeDisplay').innerHTML='<strong>Current Mode: '+(data.mode==='automatic'?'Automatic':'Manual')+'</strong>';";
+    html += "document.getElementById('modeDisplay').innerHTML='<strong>Mode: '+(data.mode==='automatic'?'Automatic':'Manual')+' <br> Active Phase: '+data.phases[data.selectedPhase].name+'</strong>';";
     html += "document.getElementById('autoBtn').className=data.mode==='automatic'?'active':'';";
     html += "document.getElementById('manBtn').className=data.mode==='manual'?'active':'';";
     html += "});";
@@ -795,7 +804,7 @@ void handleSetPhase() {
             int phase = doc["phase"];
             if (phase >= 0 && phase < 3) {
                 systemMode = MODE_MANUAL;
-                switchToPhase(phase);
+                switchToPhase(phase, true);
                 
                 DynamicJsonDocument response(256);
                 response["success"] = true;
